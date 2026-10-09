@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMoRe 送信画面</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>AMoRe <span class="sub">送信画面</span></h1>
+    <span id="connState" class="badge idle">待機中</span>
+  </header>
+
+  <main class="layout">
+    <section class="preview-area">
+      <div class="video-frame">
+        <video id="preview" autoplay playsinline muted></video>
+        <div id="previewPlaceholder" class="placeholder">「プレビュー」または「送信開始」でカメラを起動します</div>
+      </div>
+      <div id="qualityBanner" class="banner" hidden></div>
+      <div id="message" class="message" role="alert" hidden></div>
+      <button id="videoOnlyBtn" type="button" class="secondary" hidden>映像のみで送信する</button>
+    </section>
+
+    <section class="panel">
+      <h2>設定</h2>
+      <label class="field">
+        <span>カメラID（送信先）</span>
+        <select id="cameraId"></select>
+      </label>
+      <label class="field">
+        <span>カメラ</span>
+        <select id="videoDevice"></select>
+      </label>
+      <label class="field">
+        <span>マイク</span>
+        <select id="audioDevice"></select>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="audioEnabled">
+        <span>音声を送信する</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="audioProcessing" checked>
+        <span>エコーキャンセル・ノイズ抑制・自動音量調整（ブラウザ機能）</span>
+      </label>
+      <label class="field">
+        <span>映像品質</span>
+        <select id="qualityMode">
+          <option value="auto">自動（帯域に応じて切替）</option>
+          <option value="standard">1080p 固定（目標ビットレート）</option>
+          <option value="standard_max">1080p 固定（上限ビットレート）</option>
+          <option value="fallback">720p 固定</option>
+        </select>
+      </label>
+
+      <div class="buttons">
+        <button id="previewBtn" type="button" class="secondary">プレビュー</button>
+        <button id="startBtn" type="button" class="primary">送信開始</button>
+        <button id="stopBtn" type="button" class="danger" disabled>停止</button>
+      </div>
+
+      <h2>送信状態</h2>
+      <dl class="stats">
+        <dt>コーデック</dt><dd id="stCodec">-</dd>
+        <dt>解像度</dt><dd id="stResolution">-</dd>
+        <dt>FPS</dt><dd id="stFps">-</dd>
+        <dt>映像ビットレート</dt><dd id="stBitrate">-</dd>
+        <dt>推定利用可能帯域</dt><dd id="stAvailable">-</dd>
+        <dt>RTT</dt><dd id="stRtt">-</dd>
+        <dt>経路</dt><dd id="stRoute">-</dd>
+        <dt>品質</dt><dd id="stQuality">-</dd>
+        <dt>音声</dt><dd id="stAudio">-</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer class="footer">AMoRe <span id="version"></span> ／ 1つの送信画面で1カメラを送信します</footer>
+</body>
+</html>
