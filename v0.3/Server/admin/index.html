@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMoRe 管理</title>
+  <!-- /admin/ と /admin の両方で開けるよう絶対パスで参照する -->
+  <link rel="stylesheet" href="/admin/admin.css">
+  <script type="module" src="/admin/admin.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>AMoRe <span class="sub">管理</span></h1>
+    <nav class="links">
+      <a id="monitorLink" href="/admin/monitor.html" target="_blank" rel="noopener">モニター</a>
+      <a id="senderLink" href="/" target="_blank" rel="noopener">送信画面</a>
+      <a id="dockLink" href="/obs/" target="_blank" rel="noopener">OBSドック</a>
+    </nav>
+    <span id="dockerBadge" class="badge muted">確認中…</span>
+  </header>
+
+  <main class="page">
+    <section class="toolbar">
+      <div class="summary">
+        <strong id="cameraCount">-</strong>
+        <span id="reconcileInfo" class="muted"></span>
+      </div>
+      <div class="toolbar-buttons">
+        <button id="reconcileBtn" type="button" class="secondary" title="AMoRe.yaml の内容にコンテナをそろえ直し、自動復旧の記録を消します">再適用</button>
+        <button id="addBtn" type="button" class="primary">＋ カメラを追加</button>
+      </div>
+    </section>
+
+    <div id="alerts"></div>
+
+    <section id="cameras" class="grid" aria-live="polite"></section>
+    <section id="empty" class="empty" hidden>
+      <h2>カメラが登録されていません</h2>
+      <p>「＋ カメラを追加」から登録すると、そのカメラ専用のメディア処理コンテナ（MediaMTX＋FFmpeg）が自動で作成されます。</p>
+    </section>
+
+    <section class="events">
+      <h2>最近の出来事</h2>
+      <ul id="events" class="event-list"><li class="muted">まだありません</li></ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <!-- カメラ追加 -->
+  <dialog id="addDialog">
+    <form id="addForm" method="dialog">
+      <h2>カメラを追加</h2>
+      <label class="field">
+        <span>カメラID（省略時は自動）</span>
+        <input id="addId" name="id" type="text" maxlength="32" pattern="[a-z0-9][a-z0-9_\-]*" autocomplete="off">
+        <small>英小文字・数字・「-」「_」。SRTのStream IDとコンテナ名に使います。後から変更できません。</small>
+      </label>
+      <label class="field">
+        <span>表示名</span>
+        <input id="addName" name="name" type="text" maxlength="40" required autocomplete="off">
+      </label>
+      <p class="note">WebRTC・SRTのポートは空き番号から自動で割り当てます。追加すると専用コンテナを作成・起動します（初回はイメージ取得に数分かかる場合があります）。</p>
+      <p id="addError" class="form-error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" class="secondary" data-close>キャンセル</button>
+        <button id="addSubmit" type="submit" class="primary">追加</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 名前変更 -->
+  <dialog id="renameDialog">
+    <form id="renameForm" method="dialog">
+      <h2>表示名の変更</h2>
+      <p class="muted" id="renameTarget"></p>
+      <label class="field">
+        <span>表示名</span>
+        <input id="renameName" type="text" maxlength="40" required autocomplete="off">
+      </label>
+      <p id="renameError" class="form-error" hidden></p>
+      <div class="dialog-buttons">
+        <button type="button" class="secondary" data-close>キャンセル</button>
+        <button type="submit" class="primary">変更</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 確認（削除・再起動・録画切替） -->
+  <dialog id="confirmDialog">
+    <form method="dialog">
+      <h2 id="confirmTitle"></h2>
+      <p id="confirmText" class="confirm-text"></p>
+      <div class="dialog-buttons">
+        <button type="button" class="secondary" data-close>キャンセル</button>
+        <button id="confirmOk" type="submit" class="danger">実行</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ログ -->
+  <dialog id="logsDialog" class="wide">
+    <div class="logs-head">
+      <h2 id="logsTitle">ログ</h2>
+      <div>
+        <button id="logsReload" type="button" class="secondary">再読込</button>
+        <button type="button" class="secondary" data-close>閉じる</button>
+      </div>
+    </div>
+    <pre id="logsBody" class="logs"></pre>
+  </dialog>
+
+  <!-- AI 診断 -->
+  <dialog id="aiDialog" class="wide">
+    <div class="logs-head">
+      <h2 id="aiTitle">AIによる診断</h2>
+      <div>
+        <button id="aiRun" type="button" class="secondary">もう一度診断</button>
+        <button type="button" class="secondary" data-close>閉じる</button>
+      </div>
+    </div>
+    <p id="aiMeta" class="muted"></p>
+    <div id="aiBody" class="ai-body"></div>
+  </dialog>
+
+  <template id="cardTemplate">
+    <article class="card">
+      <header class="card-head">
+        <div>
+          <h3 class="name"></h3>
+          <span class="cid muted"></span>
+        </div>
+        <div class="badges">
+          <span class="badge rec" hidden>● 録画</span>
+          <span class="badge state"></span>
+        </div>
+      </header>
+
+      <div class="problem" hidden>
+        <p class="problem-text"></p>
+        <p class="problem-recovery muted"></p>
+        <details class="problem-logs">
+          <summary>直近のログ</summary>
+          <pre></pre>
+        </details>
+      </div>
+
+      <div class="video-frame">
+        <video class="video" playsinline muted></video>
+        <div class="placeholder">映像確認は停止中</div>
+        <span class="video-info" hidden></span>
+      </div>
+      <div class="preview-bar">
+        <button type="button" class="preview-btn secondary">映像確認</button>
+        <button type="button" class="mute-btn secondary" hidden>音声をオン</button>
+        <span class="preview-msg muted"></span>
+      </div>
+
+      <dl class="info">
+        <dt>受信</dt><dd class="recv"></dd>
+        <dt>OBS接続</dt><dd class="obs"></dd>
+        <dt>AI解析</dt><dd class="ai"></dd>
+        <dt>ポート</dt><dd class="ports"></dd>
+        <dt>コンテナ</dt><dd class="cstatus"></dd>
+      </dl>
+      <div class="url-row">
+        <input class="srt" type="text" readonly aria-label="OBS用 SRT URL">
+        <button type="button" class="copy-btn secondary">コピー</button>
+      </div>
+
+      <footer class="actions">
+        <a class="sender-link" target="_blank" rel="noopener">送信画面</a>
+        <span class="spacer"></span>
+        <button type="button" class="record-btn secondary">録画</button>
+        <button type="button" class="diagnose-btn secondary" hidden>AIで診断</button>
+        <button type="button" class="rename-btn secondary">名前変更</button>
+        <button type="button" class="restart-btn secondary">再起動</button>
+        <button type="button" class="logs-btn secondary">ログ</button>
+        <button type="button" class="delete-btn danger-outline">削除</button>
+      </footer>
+    </article>
+  </template>
+</body>
+</html>

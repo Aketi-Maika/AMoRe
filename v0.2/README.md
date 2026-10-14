@@ -35,8 +35,9 @@ flowchart LR
 | [`Server/`](Server/) | AMoRe本体（Rust）、管理Web、Docker Compose、`AMoRe.example.yaml` | [AMoRe-Server_構築手順書.md](Server/AMoRe-Server_構築手順書.md) |
 | [`Camera/`](Camera/) | ブラウザ送信画面（JavaScript）。Serverが `https://<Server>/` で配信 | [AMoRe-Camera_構築手順書.md](Camera/AMoRe-Camera_構築手順書.md) |
 | [`OBS/`](OBS/) | シーンコレクション、状態表示ドック。ドックはServerが `https://<Server>/obs/` で配信 | [AMoRe-OBS_構築手順書.md](OBS/AMoRe-OBS_構築手順書.md) |
+| [`VPN/`](VPN/) | 遠隔拠点（IX2215）へ VLAN40 を L2 延伸する SoftEther VPN Server（EtherIP over IPsec）、IX2215 設定例 | [AMoRe-VPN_構築手順書.md](VPN/AMoRe-VPN_構築手順書.md) |
 
-構築順序：**Server（管理Webでカメラ追加まで）→ Camera → OBS**
+構築順序：**Server（管理Webでカメラ追加まで）→ Camera → OBS**（遠隔拠点のカメラPCを使う場合は Camera の前に VPN）
 
 ## ネットワーク
 
@@ -45,6 +46,8 @@ flowchart LR
 | CoreServer（Proxmox） | `10.40.0.10/16` / VLAN40 | Server VMのホスト |
 | AMoRe Server VM `amore01` | `10.40.0.20/16` / VLAN40 | Rocky Linux 9 + Docker |
 | 編集PC（OBS） | `10.30.0.10/16` / VLAN30 | x530LでVLAN間ルーティング |
+| SoftEther VPN Server VM `sevpn01` | `10.40.0.30/16` / VLAN40 | 任意（遠隔拠点を使う場合）。UDP 500/4500 を本拠点ルーターから転送 |
+| 遠隔拠点 IX2215 `BVI1` | `10.40.0.31/16` / VLAN40（L2延伸） | 任意（遠隔拠点を使う場合） |
 
 | ポート | 用途 |
 | --- | --- |

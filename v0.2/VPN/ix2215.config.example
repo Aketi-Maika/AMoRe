@@ -1,0 +1,53 @@
+! AMoRe v0.2 VPN - IX2215（遠隔拠点）設定例
+! SoftEther VPN Server（本拠点 sevpn01）へ EtherIP over IPsec で接続し、
+! GigaEthernet1.0 を本拠点の VLAN40（10.40.0.0/16）へ L2 ブリッジする。
+!
+! 投入前に次を置き換える（実値はリポジトリに書かない）。
+!   <HQ_GLOBAL_IP> : 本拠点の固定グローバルIP
+!   <PSK>          : IPsec 事前共有鍵（SoftEther の IPsecEnable /PSK と同じ値。管理台帳を参照）
+! インターフェース名は IX2215 の実機で `show interface` を実行して確認する。
+!
+ip ufs-cache enable
+ip access-list sec-list permit ip src any dest any
+!
+ike proposal ike-prop encryption aes hash sha group 1024-bit lifetime 3600
+ike policy ike-policy peer <HQ_GLOBAL_IP> key <PSK> mode aggressive ike-prop
+ike keepalive ike-policy 10 2
+ike local-id ike-policy keyid IX2215-SITE1
+ike nat-traversal policy ike-policy keepalive 10
+!
+ipsec autokey-proposal ipsec-prop esp-aes esp-sha lifetime time 3600
+ipsec autokey-map ipsec-map sec-list peer <HQ_GLOBAL_IP> ipsec-prop
+!
+bridge irb enable
+!
+! 無通信だと IPsec SA を張らないため、BVI1 から本拠点GWへ定期的に ping してトンネルを維持する
+watch-group keepalive 10
+  event 10 ip unreach-host 10.40.0.1 BVI1 source BVI1
+!
+network-monitor keepalive enable
+!
+! WAN：拠点の上位ルーター配下（DHCP）
+interface GigaEthernet0.0
+  ip address dhcp receive-default
+  no shutdown
+!
+! LAN：本拠点 VLAN40 へブリッジする（IPアドレス・DHCPサーバーは設定しない）
+interface GigaEthernet1.0
+  no ip address
+  bridge-group 1
+  no shutdown
+!
+! EtherIP over IPsec トンネル
+interface Tunnel0.0
+  tunnel mode ether-ip ipsec
+  no ip address
+  ipsec policy tunnel ipsec-map out
+  bridge-group 1
+  no shutdown
+!
+! 管理・キープアライブ用（VLAN40 のアドレス）
+interface BVI1
+  bridge-group 1
+  ip address 10.40.0.31/16
+  no shutdown

@@ -1,0 +1,165 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0001
+      name: Templates/Applications
+  templates:
+    - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0002
+      template: AMoRe
+      name: AMoRe
+      description: |
+        AMoRe v0.3 が Zabbix sender プロトコルで送る値を受け取るテンプレート（すべて trapper アイテム）。
+        AMoRe.yaml の monitoring.zabbix.host と同じ名前のホストを作成し、このテンプレートをリンクする。
+        カメラは「AMoRe: カメラの検出」で自動登録される。
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0003
+          name: 'AMoRe: Docker 接続'
+          type: TRAP
+          key: amore.docker_ok
+          history: 7d
+          description: '1 = AMoRe が Docker に接続できている'
+          tags:
+            - tag: component
+              value: amore
+          triggers:
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0004
+              expression: 'last(/AMoRe/amore.docker_ok)=0'
+              name: 'AMoRe: Docker に接続できません'
+              priority: HIGH
+              description: 'カメラのコンテナを作成・監視できません。Server で docker compose logs amore を確認する。'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0005
+              expression: 'nodata(/AMoRe/amore.docker_ok,5m)=1'
+              name: 'AMoRe: 5分間値が届いていません'
+              priority: AVERAGE
+              description: 'AMoRe が停止しているか、Zabbix Server へ届いていない。'
+        - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0006
+          name: 'AMoRe: 登録カメラ数'
+          type: TRAP
+          key: amore.cameras
+          history: 7d
+          tags:
+            - tag: component
+              value: amore
+        - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0007
+          name: 'AMoRe: AIの推奨カメラ'
+          type: TRAP
+          key: amore.ai.recommended
+          value_type: CHAR
+          history: 7d
+          trends: '0'
+          tags:
+            - tag: component
+              value: ai
+      discovery_rules:
+        - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0008
+          name: 'AMoRe: カメラの検出'
+          type: TRAP
+          key: amore.camera.discovery
+          description: '管理Webで追加・削除したカメラを自動で登録・削除する。'
+          item_prototypes:
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0009
+              name: 'カメラ {#NAME}（{#CAMERA}）: 受信中'
+              type: TRAP
+              key: 'amore.camera.receiving[{#CAMERA}]'
+              history: 7d
+              description: '1 = カメラPCから WebRTC で受信している'
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0010
+              name: 'カメラ {#NAME}（{#CAMERA}）: OBS向け出力'
+              type: TRAP
+              key: 'amore.camera.output[{#CAMERA}]'
+              history: 7d
+              description: '1 = OBS 向けストリーム（H.264・AAC）を提供している'
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0011
+              name: 'カメラ {#NAME}（{#CAMERA}）: OBS接続数'
+              type: TRAP
+              key: 'amore.camera.obs_readers[{#CAMERA}]'
+              history: 7d
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0012
+              name: 'カメラ {#NAME}（{#CAMERA}）: 受信量'
+              type: TRAP
+              key: 'amore.camera.inbound_bytes[{#CAMERA}]'
+              history: 7d
+              units: B
+              description: '受信開始からの累計'
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0013
+              name: 'カメラ {#NAME}（{#CAMERA}）: コンテナ稼働'
+              type: TRAP
+              key: 'amore.camera.container_running[{#CAMERA}]'
+              history: 7d
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+              trigger_prototypes:
+                - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0014
+                  expression: 'last(/AMoRe/amore.camera.container_running[{#CAMERA}])=0'
+                  name: 'AMoRe: カメラ {#CAMERA} のコンテナが停止しています'
+                  priority: AVERAGE
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0015
+              name: 'カメラ {#NAME}（{#CAMERA}）: コンテナ再起動回数'
+              type: TRAP
+              key: 'amore.camera.restart_count[{#CAMERA}]'
+              history: 7d
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+              trigger_prototypes:
+                - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0016
+                  expression: 'change(/AMoRe/amore.camera.restart_count[{#CAMERA}])>0'
+                  name: 'AMoRe: カメラ {#CAMERA} のコンテナが再起動しました'
+                  priority: WARNING
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0017
+              name: 'カメラ {#NAME}（{#CAMERA}）: 不調'
+              type: TRAP
+              key: 'amore.camera.problem[{#CAMERA}]'
+              value_type: TEXT
+              history: 7d
+              trends: '0'
+              description: '不調の理由（正常なら空）'
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+              trigger_prototypes:
+                - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0018
+                  expression: 'length(last(/AMoRe/amore.camera.problem[{#CAMERA}]))>0'
+                  name: 'AMoRe: カメラ {#CAMERA} のコンテナが不調です'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: HIGH
+                  description: '管理Webのカードに理由と直近のログが表示される。AMoRe は自動で作り直しを最大3回試みる。'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0019
+              name: 'カメラ {#NAME}（{#CAMERA}）: 録画'
+              type: TRAP
+              key: 'amore.camera.recording[{#CAMERA}]'
+              history: 7d
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+            - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0020
+              name: 'カメラ {#NAME}（{#CAMERA}）: AIが検知した映像の異常'
+              type: TRAP
+              key: 'amore.camera.ai_anomaly[{#CAMERA}]'
+              value_type: TEXT
+              history: 7d
+              trends: '0'
+              tags:
+                - tag: camera
+                  value: '{#CAMERA}'
+              trigger_prototypes:
+                - uuid: a1e0c3d2b4f54e6a8c1d2e3f4a5b0021
+                  expression: 'length(last(/AMoRe/amore.camera.ai_anomaly[{#CAMERA}]))>0'
+                  name: 'AMoRe: カメラ {#CAMERA} の映像に異常（AI）'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING

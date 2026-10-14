@@ -1,0 +1,217 @@
+# AMoRe.yaml - AMoRe v0.3 Server設定
+#
+# このファイルは設定例。Serverでは次のようにコピーして使う（config/ はGit管理外）。
+#   cp AMoRe.example.yaml config/AMoRe.yaml
+#
+# Server側の設定はすべて config/AMoRe.yaml で管理する。
+# - cameras は管理Web（https://<Server>/admin/）からの追加・削除・名前変更で自動的に書き換わる。
+# - それ以外の項目を手動で変更した場合は、次で検証してから再起動して反映する。
+#     docker compose run --rm --no-deps amore check
+#     docker compose up -d --force-recreate
+# 「暫定」と記載した値は要件定義書 v2 の暫定値。試作・評価後に確定する。
+
+version: 1
+
+server:
+  # コンテナ内の待受。ホスト側は compose.yaml で 443/tcp に公開する。
+  listen: "0.0.0.0:8443"
+  # カメラPC・編集PCから見たServer VMのIPアドレス（ポート・スキームなし）。
+  # WebRTCのICE候補とOBS用SRT URLに使う。VMのIPを変えた場合は必ず合わせる。
+  public_host: "10.40.0.20"
+  tls:
+    cert: /certs/server.crt
+    key: /certs/server.key
+  camera_dir: /srv/camera
+  obs_dir: /srv/obs
+  admin_dir: /srv/admin
+
+# カメラ1台につき1つのメディア処理コンテナ（MediaMTX＋FFmpeg）を自動で作成する。
+media:
+  image: bluenviron/mediamtx:1.21.1-ffmpeg
+  container_prefix: amore-cam-
+  # 構築時に docker network create で作成するネットワーク。
+  docker_network: amore_net
+  docker_subnet: "172.30.40.0/24"
+  shared_volume: amore-shared
+  shared_dir: /shared
+  # カメラごとに範囲内の空きポートを小さい順に割り当てる。firewalldでも同じ範囲を開ける。
+  webrtc_udp_ports:
+    first: 8189
+    last: 8192
+  srt_ports:
+    first: 8890
+    last: 8893
+  # VP8で受信した映像をH.264へ変換する場合のみ使用（CPU負荷が高い）。
+  x264_preset: ultrafast
+  # カメラコンテナのUDP受信バッファ（バイト）。0 は OS 既定。ホストの net.core.rmem_max も
+  # 同じ値以上にすること（Server手順書「sysctl」）。不足するとキーフレームが欠けて映像が乱れる。
+  udp_read_buffer_bytes: 8388608
+
+limits:
+  # 開発段階1は最大4台。
+  max_cameras: 4
+
+# 管理Webで追加する。手動で書く場合の形式:
+#   - id: "cam1"            # SRTのStream ID（read:<id>）とコンテナ名に使う
+#     name: "カメラ1"
+#     webrtc_udp_port: 8189 # media.webrtc_udp_ports の範囲内
+#     srt_port: 8890        # media.srt_ports の範囲内（OBSの接続先）
+cameras: []
+
+video:
+  # 標準映像品質（暫定）。ブラウザ送信の上限ビットレートは target_bitrate_kbps を使い、
+  # max_bitrate_kbps は手動設定・Server側変換時の上限として使う。
+  standard:
+    width: 1920
+    height: 1080
+    fps: 30
+    target_bitrate_kbps: 6000
+    max_bitrate_kbps: 8000
+  # 帯域不足時の品質（暫定）。
+  fallback:
+    width: 1280
+    height: 720
+    fps: 30
+    target_bitrate_kbps: 3000
+    max_bitrate_kbps: 4000
+  # H.264を優先し、使えない環境はVP8で送信してServerでH.264へ変換する。
+  codec_preference: [H264, VP8]
+
+audio:
+  # 送信画面の「音声を送信」の初期値。
+  enabled: true
+  # Server→OBS は AAC-LC（暫定: 48kHz・最大2ch・128kbps）。
+  sample_rate: 48000
+  max_channels: 2
+  bitrate_kbps: 128
+
+srt:
+  # OBS(Caller)のSRT遅延。LAN 120 / WAN 200（暫定）。OBS側URLのlatencyへ反映される。
+  latency_ms: 120
+
+quality_control:
+  enabled: true
+  stats_interval_ms: 1000
+  # 推定帯域 4.5Mbps未満が5秒継続で720pへ（暫定）。
+  downgrade_below_kbps: 4500
+  downgrade_after_sec: 5
+  # 推定帯域 8Mbps以上が15秒継続で1080pへ復帰（暫定）。
+  upgrade_above_kbps: 8000
+  upgrade_after_sec: 15
+  # 復帰後15秒以内に再低下したら、その後30秒は復帰を保留（暫定）。
+  relapse_window_sec: 15
+  hold_after_relapse_sec: 30
+
+reconnect:
+  # 1秒、2秒、4秒、以降4秒（暫定）。
+  backoff_sec: [1, 2, 4]
+
+# NAT越えが必要な場合のみ指定する。LAN内（VLAN間ルーティング）では不要。
+# 例:
+#   - urls: ["stun:stun.example.jp:3478"]
+#   - urls: ["turn:turn.example.jp:3478"]
+#     username: amore
+#     credential: "<TURNの認証情報>"
+ice_servers: []
+
+# 録画。カメラのコンテナが OBS 向けの出力（H.264・AAC）を保存する。
+# カメラごとの有効・無効は管理Webの「録画」で切り替えられる（cameras[].record に保存される）。
+recording:
+  # 全カメラの既定。基準試験は録画無効で実施する。
+  enabled: false
+  # 保存先（Serverホスト上の絶対パス。NASのマウント先も可）。カメラごとのサブディレクトリに保存する。
+  host_dir: /srv/amore/recordings
+  # SELinux のラベル付け（:z）を行う。NFS 等ラベル付けできない保存先では false にする。
+  selinux_relabel: true
+  # 保存ファイル名（保存先からの相対。%path はカメラID）。
+  path_template: "%path/%Y-%m-%d_%H-%M-%S-%f"
+  # 録画中の形式: fmp4 | mpegts（停電・異常終了でも途中まで再生できる形式で書く）
+  segment_format: fmp4
+  # 1ファイルの長さ（1080p・6Mbps で 1時間 ≒ 2.7GB）。
+  segment_duration: 1h
+  # 区切りごとの変換先: none | mp4 | mkv | mov（再エンコードなし）
+  output_format: mp4
+  # 変換後に録画中の形式のファイルも残すか。
+  keep_segments: false
+  # 保存期間（7d・12h など。0 で自動削除しない）。
+  retention: 7d
+
+# 秘密情報（APIキー・パスワード）は yaml に直接書かず、次の参照で書く。
+#   op://保管庫/アイテム/項目  … 1Password Connect から取得（下の onepassword_connect を有効にする）
+#   env:変数名                  … AMoRe コンテナの環境変数
+#   file:/パス                  … AMoRe コンテナ内のファイル（例: file:/config/claude-api-key）
+# 取得できるかは `docker compose run --rm --no-deps amore check` で確認できる（値は表示しない）。
+secrets:
+  onepassword_connect:
+    enabled: false
+    url: http://op-connect-api:8080
+    # Connect のアクセストークンを書いたファイル（Server の config/op-connect-token。Git管理外）
+    token_file: /config/op-connect-token
+    cache_ttl: 5m
+
+# 既存の監視基盤への送信。
+monitoring:
+  # https://<Server><path> でメトリクスを公開する（Prometheus がスクレイプし Grafana で表示）。
+  prometheus:
+    enabled: true
+    path: /metrics
+  # AMoRe とカメラのコンテナのログ、出来事（不調・復旧など）を Loki へ送る。
+  loki:
+    enabled: false
+    url: http://10.20.0.20:3100
+    tenant: ""
+    username: ""
+    password: ""          # 例: op://AMoRe/Loki/password
+    labels:
+      site: hq
+    container_logs: true
+  # Zabbix の trapper アイテムへ値を送る（テンプレート Server/monitoring/zabbix_template_amore.yaml）。
+  zabbix:
+    enabled: false
+    server: 10.20.0.20
+    port: 10051
+    host: amore01         # Zabbix に登録したホスト名
+    interval_sec: 30
+  # 出来事を Grafana の注釈（アノテーション）として記録する。
+  grafana:
+    enabled: false
+    url: http://10.20.0.20:3000
+    api_token: ""         # 例: op://AMoRe/Grafana/credential（サービスアカウントトークン）
+    tags: [amore]
+
+# AI API 連携。外部の API を使う場合、ログ・映像（静止画）が送信される点に注意する。
+ai:
+  enabled: false
+  # anthropic（Claude）| openai_compatible（OpenAI互換の Chat Completions API。ローカルLLM等）
+  provider: anthropic
+  anthropic:
+    base_url: https://api.anthropic.com
+    api_key: ""           # 例: op://AMoRe/Claude API/credential
+    # 障害診断・配信操作支援に使うモデル
+    model: claude-opus-5-5
+    # 映像解析に使うモデル（定期的に呼ぶため費用に注意。例: claude-haiku-5-5 に変えると安くなる）
+    vision_model: claude-opus-5-5
+    # 応答を拒否された場合にサーバー側で別のモデルへ切り替える
+    fallbacks: true
+  openai_compatible:
+    base_url: ""          # 例: http://10.80.0.50:8000/v1
+    api_key: ""
+    model: ""
+    vision_model: ""      # 画像入力に対応したモデル（空なら model）
+  # 障害診断：管理Webの「AIで診断」でコンテナの状態・ログを送り、原因と対処を表示する。
+  diagnosis:
+    enabled: true
+    effort: high          # low | medium | high | xhigh | max（Claude の思考の深さ）
+    log_lines: 200
+  # 映像解析：受信中のカメラの静止画を定期的に送り、内容と異常（真っ暗・覆われている等）を判定する。
+  vision:
+    enabled: false
+    interval_sec: 120
+    image_width: 640
+    effort: low
+  # 配信操作支援：映像解析の結果から「今使うと良いカメラ」を提案する（OBS は操作しない）。vision が必要。
+  director:
+    enabled: false
+    interval_sec: 30
+    effort: low
+  timeout_sec: 120

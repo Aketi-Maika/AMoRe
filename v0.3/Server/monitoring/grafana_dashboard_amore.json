@@ -1,0 +1,135 @@
+{
+  "title": "AMoRe",
+  "uid": "amore-v03",
+  "description": "AMoRe v0.3 のカメラ・コンテナの状態（Prometheus）とログ（Loki）。注釈は AMoRe が送る出来事（タグ amore）。",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "10s",
+  "tags": ["amore"],
+  "templating": {
+    "list": [
+      { "name": "prometheus", "label": "Prometheus", "type": "datasource", "query": "prometheus", "current": {}, "hide": 0 },
+      { "name": "loki", "label": "Loki", "type": "datasource", "query": "loki", "current": {}, "hide": 0 }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "AMoRe の出来事",
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "iconColor": "orange",
+        "target": { "type": "tags", "tags": ["amore"], "limit": 200, "matchAny": false }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "受信中のカメラ",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "targets": [{ "refId": "A", "expr": "sum(amore_camera_receiving)" }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "不調のカメラ",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "expr": "sum(amore_camera_problem)" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "OBS接続数",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "targets": [{ "refId": "A", "expr": "sum(amore_camera_srt_readers)" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Docker 接続",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "接続不可", "color": "red" }, "1": { "text": "接続中", "color": "green" } } }]
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "expr": "amore_docker_up" }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "受信ビットレート（カメラPC→Server）",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "fieldConfig": { "defaults": { "unit": "bps" }, "overrides": [] },
+      "targets": [{ "refId": "A", "expr": "rate(amore_camera_inbound_bytes[1m]) * 8", "legendFormat": "{{name}}（{{camera}}）" }]
+    },
+    {
+      "id": 6,
+      "type": "state-timeline",
+      "title": "受信状態",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "未送信", "color": "gray" }, "1": { "text": "受信中", "color": "green" } } }]
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "expr": "amore_camera_receiving", "legendFormat": "{{name}}" }]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "コンテナの再起動回数",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "targets": [{ "refId": "A", "expr": "amore_camera_container_restarts", "legendFormat": "{{camera}}" }]
+    },
+    {
+      "id": 8,
+      "type": "state-timeline",
+      "title": "不調・録画・AIの異常検知",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "${prometheus}" },
+      "targets": [
+        { "refId": "A", "expr": "amore_camera_problem", "legendFormat": "不調 {{camera}}" },
+        { "refId": "B", "expr": "amore_camera_recording", "legendFormat": "録画 {{camera}}" },
+        { "refId": "C", "expr": "amore_camera_ai_anomaly", "legendFormat": "AI異常 {{camera}}" }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "logs",
+      "title": "出来事（追加・削除・不調・復旧・録画・AI）",
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "${loki}" },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+      "targets": [{ "refId": "A", "expr": "{app=\"amore\", source=\"event\"}" }]
+    },
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "ログ（AMoRe・カメラのコンテナ）",
+      "gridPos": { "x": 0, "y": 26, "w": 24, "h": 12 },
+      "datasource": { "type": "loki", "uid": "${loki}" },
+      "options": { "showTime": true, "wrapLogMessage": true, "sortOrder": "Descending" },
+      "targets": [{ "refId": "A", "expr": "{app=\"amore\", source=~\"amore|camera\"}" }]
+    }
+  ]
+}
