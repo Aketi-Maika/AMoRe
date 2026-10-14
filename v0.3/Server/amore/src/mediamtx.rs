@@ -168,6 +168,9 @@ pub fn render_camera_config(cfg: &Config, cam: &Camera) -> Result<String> {
         "webrtcICEServers2": ice_servers,
         "srt": true,
         "srtAddress": format!(":{}", cam.srt_port),
+        // MoQ（Media over QUIC。v1.21で追加）は既定で有効で、:8892（HTTP/2・HTTP/3）・:8893（QUIC）を使う。
+        // カメラに割り当てる SRT ポート（8890〜8893）と重なり、3台目・4台目が起動直後に終了するため無効にする。
+        "moq": false,
         "pathDefaults": {
             // 保存先は recording.host_dir をコンテナの /recordings にマウントしたもの。
             "recordPath": format!("/recordings/{}", cfg.recording.relative_template()),
@@ -400,6 +403,8 @@ mod tests {
         let doc = rendered(1);
         assert_eq!(doc["webrtcLocalUDPAddress"].as_str(), Some(":8190"));
         assert_eq!(doc["srtAddress"].as_str(), Some(":8891"));
+        // MoQ の既定ポート（8892・8893）がカメラの SRT ポートと重ならないよう無効にしている。
+        assert_eq!(doc["moq"].as_bool(), Some(false));
         assert_eq!(doc["webrtcAdditionalHosts"][0].as_str(), Some("10.40.0.20"));
         assert_eq!(doc["webrtcIPsFromInterfaces"].as_bool(), Some(false));
         assert_eq!(doc["apiAddress"].as_str(), Some(":9997"));

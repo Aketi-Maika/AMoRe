@@ -814,7 +814,7 @@ v0.2 を構築済みの Server（`/opt/AMoRe/v0.2/Server` で稼働中）を v0.
 | 不調の理由「ネットワーク amore_net に接続されていません」 | AMoRe が自動で接続し直す。直らない場合は `docker network inspect amore_net` でサブネット・接続中のコンテナを確認し、`再適用` を押す |
 | 不調の理由「起動できません: …port is already allocated」 | そのカメラのUDPポートを他のプロセス・コンテナが使用中。`sudo ss -lunp \| grep -E ':(819[0-9]\|889[0-9])'` で確認する |
 | 不調の理由に「メモリ不足で強制終了」 | VM のメモリ不足。`free -h`・`docker stats` を確認し、VM のメモリを増やす |
-| v0.2 で「3台目のカメラを追加すると `dns error: failed to lookup address information` と表示されコンテナが起動しない」 | コンテナが再起動を繰り返しているか、ネットワークから外れていると、AMoRe から名前で接続できずこの表示になる。v0.3 では原因（再起動回数・終了コード・ログ・ネットワーク）がカードに表示され、自動で復旧を試みる。表示された理由に従って対処する |
+| v0.2 で「3台目のカメラを追加すると `dns error: failed to lookup address information` と表示されコンテナが起動しない」 | 原因は、MediaMTX v1.21 の MoQ（Media over QUIC）が既定で有効で、コンテナ内で `8892`・`8893` を使っていたこと。cam3（SRT 8892）・cam4（SRT 8893）の SRT と重なり、起動直後に終了して再起動を繰り返していた（再起動中は AMoRe から名前で接続できずこの表示になる）。v0.3 ではカメラのコンテナで MoQ を無効にしている（`docker compose exec amore amore render-mediamtx` の出力に `moq: false`） |
 | 録画ファイルができない | 管理Webで `● 録画` になっているか。カメラが送信中か（送信していない間は録画しない）。保存先の権限・容量（`df -h`）。SELinux の拒否（`sudo ausearch -m avc -ts recent`）。NFS の場合は `recording.selinux_relabel: false` と `sudo setsebool -P virt_use_nfs 1` |
 | 録画が MP4 に変換されない | カメラの `ログ` で `[amore] convert:` の行を確認する。変換は区切り（`segment_duration`）が閉じたときに行われる |
 | `check` で「NG …: 1Password Connect に接続できません」 | `docker compose --profile op-connect ps` で Connect が `running` か。`secrets.onepassword_connect.url` |
