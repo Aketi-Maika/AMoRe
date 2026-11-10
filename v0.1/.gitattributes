@@ -1,0 +1,6 @@
+# Linux（Server VM・コンテナ）で実行するファイルは改行をLFに固定する
+*.sh   text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.rs   text eol=lf
+Dockerfile text eol=lf

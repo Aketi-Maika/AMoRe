@@ -1,0 +1,54 @@
+# AMoRe v0.1 - Server構成
+#   amore : 接続・設定管理（Rust）。送信画面・OBSドック・管理Web・API を HTTPS(443) で提供する。
+#           カメラが追加されると、カメラ専用のメディア処理コンテナ（MediaMTX＋FFmpeg）を
+#           Dockerソケット経由で自動作成する（コンテナ名 amore-cam-<カメラID>）。
+#
+# 事前準備（初回のみ）:
+#   docker network create --subnet 172.30.40.0/24 amore_net
+#   cp AMoRe.example.yaml config/AMoRe.yaml
+#   sh scripts/gen-cert.sh <ServerのIP>
+# 起動: docker compose up -d --build
+#
+# 注意: amore は Dockerソケットを使うため、ホストの管理者権限に相当する操作ができる。
+
+name: amore
+
+services:
+  amore:
+    build: ./amore
+    image: amore:0.1.0
+    restart: unless-stopped
+    command: ["--config", "/config/AMoRe.yaml", "serve"]
+    environment:
+      RUST_LOG: info
+    ports:
+      - "443:8443/tcp"
+    # SELinux有効のRocky LinuxでDockerソケットへ接続するため、このコンテナだけラベル分離を無効にする。
+    security_opt:
+      - label=disable
+    volumes:
+      - ./config:/config                       # AMoRe.yaml（管理Webが cameras を書き換える）
+      - ./certs:/certs:ro
+      - ./admin:/srv/admin:ro
+      - ../Camera/www:/srv/camera:ro
+      - ../OBS/dock:/srv/obs:ro
+      - amore-shared:/shared                   # カメラコンテナと共有（mediamtx.yml・変換スクリプト）
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "amore", "--config", "/config/AMoRe.yaml", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - amore_net
+
+networks:
+  # カメラコンテナも接続するため、Compose外で作成した固定名のネットワークを使う。
+  # サブネットは AMoRe.yaml の media.docker_subnet と同じにする。
+  amore_net:
+    external: true
+
+volumes:
+  amore-shared:
+    name: amore-shared
