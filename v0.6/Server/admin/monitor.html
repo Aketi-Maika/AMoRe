@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMoRe モニター</title>
+  <link rel="stylesheet" href="/admin/monitor.css">
+  <script type="module" src="/admin/monitor.js"></script>
+</head>
+<body>
+  <header class="bar">
+    <strong>AMoRe <span class="sub">モニター</span></strong>
+    <span id="director" class="director" hidden></span>
+    <span class="spacer"></span>
+    <span id="clock" class="clock"></span>
+    <span id="server" class="server">確認中…</span>
+    <button id="fullscreenBtn" type="button" title="全画面表示（Esc で戻る）">全画面</button>
+  </header>
+
+  <main id="grid" class="grid" data-count="0">
+    <p id="empty" class="empty" hidden>カメラが登録されていません。管理Web（/admin/）でカメラを追加してください。</p>
+  </main>
+
+  <template id="tileTemplate">
+    <section class="tile">
+      <video playsinline muted></video>
+      <div class="placeholder"></div>
+      <div class="overlay top">
+        <span class="name"></span>
+        <span class="rec" hidden>● REC</span>
+        <span class="state"></span>
+        <span class="spacer"></span>
+        <span class="res"></span>
+      </div>
+      <div class="overlay bottom">
+        <span class="recommend" hidden>推奨</span>
+        <span class="ai"></span>
+        <span class="spacer"></span>
+        <button type="button" class="audio" title="このカメラの音声を聞く（他のカメラは消音）">🔇</button>
+      </div>
+    </section>
+  </template>
+</body>
+</html>

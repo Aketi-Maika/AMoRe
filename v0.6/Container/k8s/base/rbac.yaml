@@ -1,0 +1,45 @@
+# AMoRe の Pod が使う権限。namespace amore の中だけで、カメラの Pod を作るのに必要な操作に限る。
+# （Docker 版の Docker ソケット＝ホストの管理者権限に相当、よりも狭い）
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: amore
+  labels:
+    app.kubernetes.io/part-of: amore
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: amore
+  labels:
+    app.kubernetes.io/part-of: amore
+rules:
+  # カメラの Deployment（作成・更新・削除・停止）
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # カメラの ConfigMap（mediamtx.yml）・Service、keepalived の設定、cameras.yaml の保存
+  - apiGroups: [""]
+    resources: ["configmaps", "services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # カメラの Pod の状態・作り直し・ログ
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: amore
+  labels:
+    app.kubernetes.io/part-of: amore
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: amore
+subjects:
+  - kind: ServiceAccount
+    name: amore

@@ -1,0 +1,31 @@
+# monitoring.yaml - 既存の監視基盤への送信（AMoRe v0.4）
+#
+# 冗長構成では Server ごとに送る（loki.labels.site・zabbix.host を Server ごとに変える）。
+monitoring:
+  # https://<Server><path> でメトリクスを公開する（Prometheus がスクレイプし Grafana で表示）。
+  prometheus:
+    enabled: true
+    path: /metrics
+  # AMoRe とカメラのコンテナのログ、出来事（不調・復旧など）を Loki へ送る。
+  loki:
+    enabled: false
+    url: http://10.20.0.20:3100
+    tenant: ""
+    username: ""
+    password: ""          # 例: op://AMoRe/Loki/password
+    labels:
+      site: hq
+    container_logs: true
+  # Zabbix の trapper アイテムへ値を送る（テンプレート Server/monitoring/zabbix_template_amore.yaml）。
+  zabbix:
+    enabled: false
+    server: 10.20.0.20
+    port: 10051
+    host: amore01         # Zabbix に登録したホスト名
+    interval_sec: 30
+  # 出来事を Grafana の注釈（アノテーション）として記録する。
+  grafana:
+    enabled: false
+    url: http://10.20.0.20:3000
+    api_token: ""         # 例: op://AMoRe/Grafana/credential（サービスアカウントトークン）
+    tags: [amore]

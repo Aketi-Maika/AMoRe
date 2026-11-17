@@ -1,0 +1,45 @@
+# MetalLB：拠点ごとの接続先IP（server.public_host）。共通IP（149.40.2.1・10.40.0.25）は keepalived が載せるため含めない。
+#   kubectl apply -f Container/k8s/metallb/pools.yaml
+# - 拠点ごとに IPAddressPool を分け、L2Advertisement でその拠点のノードだけから通知する
+#   （遠隔拠点のノードが本拠点の IP を通知して VPN を往復することがないように）
+# - kubernetes.yaml の metallb_pool に、その拠点のプール名（amore-hq / amore-site1）を書く
+# - アドレスはノードの IP（10.40.0.41〜43）と重ねない
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: amore-hq
+  namespace: metallb-system
+spec:
+  addresses: ["10.40.0.20/32"]
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: amore-site1
+  namespace: metallb-system
+spec:
+  addresses: ["10.40.0.21/32"]
+  autoAssign: false
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: amore-hq
+  namespace: metallb-system
+spec:
+  ipAddressPools: ["amore-hq"]
+  nodeSelectors:
+    - matchLabels:
+        amore.site: hq
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: amore-site1
+  namespace: metallb-system
+spec:
+  ipAddressPools: ["amore-site1"]
+  nodeSelectors:
+    - matchLabels:
+        amore.site: site1

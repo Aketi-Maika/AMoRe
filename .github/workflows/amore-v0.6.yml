@@ -1,0 +1,136 @@
+# AMoRe v0.6 の検証（push・pull request ごと）
+# - Rust：書式（rustfmt）・clippy（警告もエラー扱い）・テスト
+# - イメージ：Dockerfile のビルド（push はしない）
+# - マニフェスト：kustomize build と kubeconform による検証
+# - シェル：shellcheck
+name: AMoRe v0.6
+
+on:
+  push:
+    paths:
+      - "v0.6/**"
+      - ".github/workflows/amore-v0.6.yml"
+  pull_request:
+    paths:
+      - "v0.6/**"
+      - ".github/workflows/amore-v0.6.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust（fmt・clippy・test）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v0.6/Server/amore
+    steps:
+      # テストが include_str!("../../config.example/*.yaml") を使うため、リポジトリ全体を取得する。
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: v0.6/Server/amore
+      - name: cargo fmt --check
+        run: cargo fmt --check
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        run: cargo test
+
+  images:
+    name: イメージ（${{ matrix.name }}）
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: amore（Docker Compose 版）
+            context: v0.6/Server/amore
+            file: v0.6/Server/amore/Dockerfile
+            cache: v06-server-amore
+          - name: amore（Kubernetes 版）
+            context: v0.6
+            file: v0.6/Container/Dockerfile
+            cache: v06-container-amore
+          - name: keepalived（Docker Compose 版）
+            context: v0.6/Server/keepalived
+            file: v0.6/Server/keepalived/Dockerfile
+            cache: v06-server-keepalived
+          - name: keepalived（Kubernetes 版）
+            context: v0.6/Container/keepalived
+            file: v0.6/Container/keepalived/Dockerfile
+            cache: v06-container-keepalived
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+
+  manifests:
+    name: マニフェスト（kustomize・kubeconform）
+    runs-on: ubuntu-latest
+    env:
+      KUBECONFORM_VERSION: v0.7.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: kubeconform を用意
+        run: |
+          curl -sSfL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" kubeconform
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kubeconform" -v
+      # 拠点の config/ は Git 管理外のため、CI でだけ設定例をコピーする。
+      - name: 拠点の config/ を設定例から作る
+        run: |
+          for site in hq site1; do
+            cp v0.6/Server/config.example/*.yaml "v0.6/Container/k8s/sites/${site}/config/"
+          done
+      - name: kustomize build
+        run: |
+          mkdir -p rendered
+          kubectl kustomize v0.6/Container/k8s/base > rendered/base.yaml
+          kubectl kustomize v0.6/Container/k8s/sites/hq > rendered/hq.yaml
+          kubectl kustomize v0.6/Container/k8s/sites/site1 > rendered/site1.yaml
+          wc -l rendered/*.yaml
+      # MetalLB の IPAddressPool・L2Advertisement（CRD）は datree の CRD カタログで検証する。
+      - name: kubeconform
+        run: |
+          kubeconform -strict -summary -output pretty \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered/*.yaml \
+            v0.6/Container/k8s/metallb/pools.yaml \
+            v0.6/Container/k8s/optional/op-connect.yaml
+
+  shell:
+    name: シェル（shellcheck）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck \
+            v0.6/Container/keepalived/*.sh \
+            v0.6/Server/keepalived/*.sh \
+            v0.6/Server/scripts/*.sh \
+            v0.6/Container/scripts/*.sh \
+            v0.6/Server/amore/assets/*.sh

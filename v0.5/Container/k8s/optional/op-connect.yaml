@@ -1,0 +1,63 @@
+# 1Password Connect サーバー（任意）。拠点ごとに1つ置く例（hq）。site1 は名前・ラベルの hq を site1 に読み替える。
+#   kubectl -n amore create secret generic op-credentials --from-file=1password-credentials.json
+#   kubectl apply -n amore -f Container/k8s/optional/op-connect.yaml
+# secrets.yaml の onepassword_connect.url を http://op-connect-hq:8080 にし、
+# token_file を /config/secret/op-connect-token（Secret amore-hq-secrets の op-connect-token）にする。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: op-connect-hq
+  labels:
+    app.kubernetes.io/name: op-connect
+    app.kubernetes.io/part-of: amore
+    amore.site: hq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: op-connect
+      amore.site: hq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: op-connect
+        app.kubernetes.io/part-of: amore
+        amore.site: hq
+    spec:
+      nodeSelector:
+        amore.site: hq
+      containers:
+        - name: api
+          image: 1password/connect-api:1.8
+          ports:
+            - { name: http, containerPort: 8080 }
+          volumeMounts:
+            - { name: credentials, mountPath: /home/opuser/.op/1password-credentials.json, subPath: 1password-credentials.json, readOnly: true }
+            - { name: data, mountPath: /home/opuser/.op/data }
+        - name: sync
+          image: 1password/connect-sync:1.8
+          env:
+            - { name: OP_HTTP_PORT, value: "8081" }
+          volumeMounts:
+            - { name: credentials, mountPath: /home/opuser/.op/1password-credentials.json, subPath: 1password-credentials.json, readOnly: true }
+            - { name: data, mountPath: /home/opuser/.op/data }
+      volumes:
+        - name: credentials
+          secret:
+            secretName: op-credentials
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-connect-hq
+  labels:
+    app.kubernetes.io/part-of: amore
+    amore.site: hq
+spec:
+  selector:
+    app.kubernetes.io/name: op-connect
+    amore.site: hq
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }

@@ -1,0 +1,104 @@
+# AMoRe v0.4 - Server構成
+#   amore : 接続・設定管理（Rust）。送信画面・OBSドック・管理Web・モニター・API を HTTPS(443) で提供する。
+#           カメラが追加されると、カメラ専用のメディア処理コンテナ（MediaMTX＋FFmpeg）を
+#           Dockerソケット経由で自動作成する（コンテナ名 amore-cam-<カメラID>）。
+#           録画はカメラのコンテナが recording.yaml の recording.host_dir（ホスト上のディレクトリ）へ直接書く。
+#   keepalived（冗長構成のみ。プロファイル cluster）:
+#           カメラ用・OBS 用の共通IP（VRRP）。設定は AMoRe が cluster.yaml から生成して共有ボリュームへ書く。
+#           ホストのネットワークで動き、VM の NIC に共通IPを載せる。
+#   op-connect-api / op-connect-sync（任意。プロファイル op-connect）:
+#           1Password Connect サーバー。設定ファイルの秘密情報を op://… で参照する場合に使う。
+#
+# 事前準備（初回のみ）:
+#   docker network create --subnet 172.30.40.0/24 amore_net
+#   cp config.example/*.yaml config/
+#   sh scripts/gen-cert.sh <ServerのIP> [他の Server・共通IP …]
+# 起動: docker compose up -d --build
+#       冗長構成（cluster.yaml）: docker compose --profile cluster up -d --build
+#       1Password Connect も使う場合: --profile op-connect を加える
+#
+# 注意: amore は Dockerソケットを使うため、ホストの管理者権限に相当する操作ができる。
+
+name: amore
+
+services:
+  amore:
+    build: ./amore
+    image: amore:0.4.0
+    restart: unless-stopped
+    command: ["--config", "/config/AMoRe.yaml", "serve"]
+    environment:
+      RUST_LOG: info
+    ports:
+      - "443:8443/tcp"
+    # SELinux有効のRocky LinuxでDockerソケットへ接続するため、このコンテナだけラベル分離を無効にする。
+    security_opt:
+      - label=disable
+    volumes:
+      - ./config:/config                       # AMoRe.yaml と include のファイル（管理Web・同期が cameras.yaml を書き換える）
+      - ./certs:/certs:ro
+      - ./admin:/srv/admin:ro
+      - ../Camera/www:/srv/camera:ro
+      - ../OBS/dock:/srv/obs:ro
+      - amore-shared:/shared                   # カメラコンテナ・keepalived と共有（mediamtx.yml・変換スクリプト・keepalived.conf）
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "amore", "--config", "/config/AMoRe.yaml", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - amore_net
+
+  # 共通IP（冗長構成のみ）。`docker compose --profile cluster up -d` で起動する。
+  # AMoRe（https://127.0.0.1/healthz）が応答しなくなると共通IPを手放し、他の Server に移す。
+  keepalived:
+    profiles: ["cluster"]
+    build: ./keepalived
+    image: amore-keepalived:0.4.0
+    container_name: amore-keepalived           # AMoRe が設定の再読み込み（SIGHUP）に使う名前
+    restart: unless-stopped
+    init: true
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - NET_BROADCAST
+    security_opt:
+      - label=disable
+    volumes:
+      - amore-shared:/shared
+
+  # 1Password Connect サーバー（任意）。1Password で作成した 1password-credentials.json を
+  # config/ に置き、`docker compose --profile op-connect up -d` で起動する。外部へポートは公開しない。
+  op-connect-api:
+    profiles: ["op-connect"]
+    image: 1password/connect-api:1.8
+    restart: unless-stopped
+    volumes:
+      - ./config/1password-credentials.json:/home/opuser/.op/1password-credentials.json:ro,z
+      - op-connect-data:/home/opuser/.op/data
+    networks:
+      - amore_net
+
+  op-connect-sync:
+    profiles: ["op-connect"]
+    image: 1password/connect-sync:1.8
+    restart: unless-stopped
+    volumes:
+      - ./config/1password-credentials.json:/home/opuser/.op/1password-credentials.json:ro,z
+      - op-connect-data:/home/opuser/.op/data
+    networks:
+      - amore_net
+
+networks:
+  # カメラコンテナも接続するため、Compose外で作成した固定名のネットワークを使う。
+  # サブネットは AMoRe.yaml の media.docker_subnet と同じにする。
+  amore_net:
+    external: true
+
+volumes:
+  amore-shared:
+    name: amore-shared
+  op-connect-data: {}

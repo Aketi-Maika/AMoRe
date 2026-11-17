@@ -1,0 +1,18 @@
+# cameras.yaml - カメラの一覧（AMoRe v0.4）
+#
+# 管理Webでの追加・削除・名前変更・録画切替と、Server 間の同期で AMoRe が自動的に書き換える。
+# 冗長構成では全 Server で同じ内容になる（変更した Server が他の Server へ配る）。
+# 手で編集しないこと（編集する場合は全 Server を止めてから、全 Server で同じ内容にする）。
+#
+# 形式:
+#   - id: "cam1"            # SRTのStream ID（read:<id>）とコンテナ名に使う
+#     name: "カメラ1"
+#     webrtc_udp_port: 8189 # media.webrtc_udp_ports の範囲内
+#     srt_port: 8890        # media.srt_ports の範囲内（OBSの接続先）
+#     record: true          # 省略時は recording.enabled
+#     redundancy: dual      # single | dual。省略時は cluster.default_redundancy
+
+# 改訂番号（変更した時刻）。Server 間の同期で新しい方を採用する。
+cameras_revision: 0
+
+cameras: []

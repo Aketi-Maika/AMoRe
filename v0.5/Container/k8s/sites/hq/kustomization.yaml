@@ -1,0 +1,29 @@
+# AMoRe v0.5 - 拠点 hq（本拠点）の AMoRe 一式
+#   kubectl apply -k Container/k8s/sites/hq
+# config/ に Server/config.example/*.yaml をコピーし、この拠点の値に書き換えてから適用する
+# （手順書「拠点の設定ファイル」）。config/ は Git 管理外。
+# 設定を変えた後は `kubectl -n amore rollout restart deployment/amore-hq` で読み直させる。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: amore
+resources:
+  - amore.yaml
+  - recordings.yaml
+configMapGenerator:
+  # 手で編集する設定（秘密情報そのものは入れない。秘密は Secret amore-hq-secrets）
+  - name: amore-hq-config
+    files:
+      - config/AMoRe.yaml
+      - config/cameras.yaml
+      - config/recording.yaml
+      - config/secrets.yaml
+      - config/access.yaml
+      - config/cluster.yaml
+      - config/monitoring.yaml
+      - config/ai.yaml
+      - config/kubernetes.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    app.kubernetes.io/part-of: amore
+    amore.site: hq

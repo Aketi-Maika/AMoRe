@@ -1,0 +1,27 @@
+# access.yaml - 画面ごとの入室パスワード（AMoRe v0.5）
+#
+# password_required: true の画面は、開くとパスワードの入力欄が出る。正しければ期限付きの
+# 入室トークンを発行し、以後のデータ・映像・操作の API に付けて送る（タブを閉じると消える）。
+# false の画面は従来どおり誰でも使える。
+# password は秘密参照（op://…・env:…・file:…）で書く。直接書く場合は config/ の権限に注意する。
+# 冗長構成では全 Server で同じ内容にする（どの Server で入室しても全 Server で有効）。
+access:
+  # 管理画面（/admin/）とカメラ・コンテナの操作。admin で入室すれば他の画面の操作もできる。
+  # AMoRe は Docker を操作するため、本番では true にし、強いパスワードにすること。
+  admin:
+    password_required: false
+    password: ""            # 例: op://AMoRe/AMoRe admin/password
+  # カメラ画面（送信画面 /）と送信（WHIP）。
+  camera:
+    password_required: false
+    password: ""            # 例: op://AMoRe/AMoRe camera/password
+  # モニター画面（/admin/monitor.html）と映像確認（WHEP）。
+  monitor:
+    password_required: false
+    password: ""            # 例: op://AMoRe/AMoRe monitor/password
+  # OBSドック（/obs/）と状態の取得。OBS 内のブラウザで入力が必要になるため既定は false。
+  dock:
+    password_required: false
+    password: ""
+  # 入室後、再入力が不要な時間。
+  session_ttl: 12h

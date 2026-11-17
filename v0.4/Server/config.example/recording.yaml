@@ -1,0 +1,24 @@
+# recording.yaml - 録画（AMoRe v0.4）
+#
+# カメラのコンテナが OBS 向けの出力（H.264・AAC）を保存する。
+# カメラごとの有効・無効は管理Webの「録画」で切り替えられる（cameras[].record に保存される）。
+# 冗長構成では Server ごとに録画する（各 Server が全カメラの映像を持つため、録画も Server ごとに残る）。
+recording:
+  # 全カメラの既定。基準試験は録画無効で実施する。
+  enabled: false
+  # 保存先（Serverホスト上の絶対パス。NASのマウント先も可）。カメラごとのサブディレクトリに保存する。
+  host_dir: /srv/amore/recordings
+  # SELinux のラベル付け（:z）を行う。NFS 等ラベル付けできない保存先では false にする。
+  selinux_relabel: true
+  # 保存ファイル名（保存先からの相対。%path はカメラID）。
+  path_template: "%path/%Y-%m-%d_%H-%M-%S-%f"
+  # 録画中の形式: fmp4 | mpegts（停電・異常終了でも途中まで再生できる形式で書く）
+  segment_format: fmp4
+  # 1ファイルの長さ（1080p・6Mbps で 1時間 ≒ 2.7GB）。
+  segment_duration: 1h
+  # 区切りごとの変換先: none | mp4 | mkv | mov（再エンコードなし）
+  output_format: mp4
+  # 変換後に録画中の形式のファイルも残すか。
+  keep_segments: false
+  # 保存期間（7d・12h など。0 で自動削除しない）。
+  retention: 7d
