@@ -1,0 +1,108 @@
+# 拠点 hq の AMoRe（1 Pod）。カメラの Pod はこの AMoRe が k8s API で同じノードに作る。
+# - ノード：ラベル amore.site=hq のノード
+# - HTTPS：拠点の接続先IP（MetalLB）と共通IP（keepalived）の Service は AMoRe が作る
+# - hostPort 18443：このノードで AMoRe が動いているかを keepalived が確かめる
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amore-hq
+  labels:
+    app.kubernetes.io/name: amore
+    app.kubernetes.io/part-of: amore
+    amore.site: hq
+spec:
+  replicas: 1
+  # hostPort を使うため、古い Pod を止めてから新しい Pod を作る。
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amore
+      amore.site: hq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: amore
+        app.kubernetes.io/part-of: amore
+        amore.site: hq
+        amore.role: amore
+    spec:
+      serviceAccountName: amore
+      enableServiceLinks: false
+      # ノードが止まったら30秒で同じ拠点の別のノードへ移す（既定の5分では長すぎる）。カメラの Pod も後を追う。
+      tolerations:
+        - { key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
+        - { key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30 }
+      nodeSelector:
+        amore.site: hq
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+        fsGroup: 10001
+      initContainers:
+        # 設定を書き込める /config へコピーする。cameras.yaml は AMoRe が保存した ConfigMap を優先する。
+        - name: config
+          image: amore:0.5.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              cp /config-src/*.yaml /config/
+              if [ -s /cameras-src/cameras.yaml ]; then cp /cameras-src/cameras.yaml /config/cameras.yaml; fi
+              ls -l /config
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: config-src, mountPath: /config-src, readOnly: true }
+            - { name: cameras-src, mountPath: /cameras-src, readOnly: true }
+      containers:
+        - name: amore
+          image: amore:0.5.0
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/config/AMoRe.yaml", "serve"]
+          env:
+            - name: RUST_LOG
+              value: info
+          ports:
+            - name: https
+              containerPort: 8443
+              hostPort: 18443
+              protocol: TCP
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8443, scheme: HTTPS }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8443, scheme: HTTPS }
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: secrets, mountPath: /config/secret, readOnly: true }
+            - { name: tls, mountPath: /certs, readOnly: true }
+            # keepalived（同じノードの DaemonSet）が書く共通IPの受け持ち状態
+            - { name: keepalived-state, mountPath: /shared/keepalived/state, readOnly: true }
+      volumes:
+        - name: config
+          emptyDir: {}
+        - name: config-src
+          configMap:
+            name: amore-hq-config
+        - name: cameras-src
+          configMap:
+            name: amore-hq-cameras
+            optional: true
+        - name: secrets
+          secret:
+            secretName: amore-hq-secrets
+            optional: true
+        - name: tls
+          secret:
+            secretName: amore-tls
+        - name: keepalived-state
+          hostPath:
+            path: /var/lib/amore/keepalived
+            type: DirectoryOrCreate

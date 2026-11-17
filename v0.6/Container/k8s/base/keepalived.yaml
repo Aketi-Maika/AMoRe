@@ -1,0 +1,72 @@
+# 共通IP（カメラ用・OBS 用）を載せる keepalived。拠点のラベル（amore.site）を付けた全ノードで動く。
+# - 設定はノードごとに AMoRe が ConfigMap amore-keepalived（<ノード名>.conf）へ生成する
+# - AMoRe の Pod が動いていて応答するノードだけが共通IPを受け持つ（check_amore.sh が hostPort を確認する）
+# - k8s API が止まっても、ノード同士の VRRP で共通IPは移る
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: amore-keepalived
+  labels:
+    app.kubernetes.io/name: amore-keepalived
+    app.kubernetes.io/part-of: amore
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: amore-keepalived
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: amore-keepalived
+        app.kubernetes.io/part-of: amore
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: amore.site
+                    operator: Exists
+      tolerations:
+        - operator: Exists
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: keepalived
+          image: amore-keepalived:0.6.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            # AMoRe の Pod の hostPort（k8s/sites/*/amore.yaml）と同じ値
+            - name: AMORE_HOST_PORT
+              value: "18443"
+          securityContext:
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW", "NET_BROADCAST"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/amore-keepalived
+              readOnly: true
+            # 受け持ち状態（同じノードの AMoRe が /shared/keepalived/state として読む。k8s/sites/*/amore.yaml と同じパス）
+            - name: state
+              mountPath: /shared/keepalived/state
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+      volumes:
+        - name: config
+          configMap:
+            name: amore-keepalived
+            optional: true
+        - name: state
+          hostPath:
+            path: /var/lib/amore/keepalived
+            type: DirectoryOrCreate

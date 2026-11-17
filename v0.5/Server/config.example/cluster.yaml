@@ -1,0 +1,49 @@
+# cluster.yaml - 拠点ごとの Server による冗長化（AMoRe v0.5）
+#
+# 拠点ごとに AMoRe Server を置き（拠点間VPNで VLAN40 を L2 延伸）、どれかが止まっても送受信を続ける。
+# - カメラPCは全 Server 共通の「カメラ用の共通IP」へ送る。共通IPは keepalived（VRRP）で
+#   稼働中の Server のうち1台が受け持ち、止まると別の Server へ移る（送信画面は同じIPへ自動で張り直す）。
+# - OBS は「OBS 用の共通IP」へ接続する（URL を固定したまま、受け持つ Server が替わる）。
+# - カメラの一覧・状態・映像は全 Server が常に受け取る（一覧の同期と、Server 間の映像の中継）。
+#
+# site 以外は全 Server で同じ内容にする。1台だけで使う場合は enabled: false のままでよい。
+cluster:
+  enabled: false
+  # この Server の名前（peers の name のどれか）。Server ごとに変える。
+  site: hq
+  # Server の一覧（実IP）。Server 同士の連携と、dual のカメラの送信先に使う。
+  peers:
+    - name: hq
+      url: https://10.40.0.20   # その Server の server.public_host と同じアドレス
+      priority: 100             # 1～254。大きいほど共通IPを優先して受け持つ（Server ごとに変える）
+    - name: site1
+      url: https://10.40.0.21
+      priority: 50
+  # 共通IP（keepalived）。AMoRe がこの設定から keepalived の設定ファイルを生成する。
+  keepalived:
+    # false の場合は keepalived を使わない（共通IPはルーター等の別の方法で用意する）。
+    enabled: true
+    # 共通IPを載せる VM の NIC（VLAN40 側）。`ip -br addr` で確認する。
+    interface: ens18
+    # カメラ用の共通IP（CIDR）。カメラPCは https://149.40.2.1/ を開く。
+    # 149.40.2.0/24 はプライベートアドレスではない（インターネットで使われている範囲）。
+    # 社内（VPN内）だけで使い、インターネットへ漏れないようにする。問題があれば 10.40.2.1/24 等に変える。
+    camera_vip: 149.40.2.1/24
+    # OBS 用の共通IP（CIDR）。OBS の SRT URL にこのアドレスを使う。
+    obs_vip: 10.40.0.25/16
+    # VRRP の識別番号（同じ VLAN の他の VRRP と重ねない）。
+    camera_vrid: 51
+    obs_vrid: 52
+    # VRRP の通知間隔（秒）。
+    advert_int: 1
+    # 優先度の高い Server が復旧しても共通IPを取り戻さない（余計な切替をしない）。
+    nopreempt: true
+  # Server 同士の認証と入室トークンの署名に使う共通の秘密（全 Server で同じ値。秘密参照で書く）。
+  shared_secret: ""         # 例: op://AMoRe/AMoRe cluster/password
+  # 他の Server の状態を確認する間隔（秒）と、停止とみなすまでの時間（秒）。
+  heartbeat_sec: 2
+  down_after_sec: 6
+  # cameras[].redundancy を省略したカメラの方式。
+  #   single … 共通IPだけへ送る（Server の切替時に数秒途切れる）
+  #   dual   … 共通IPに加え、別の Server の実IPへも同時に送る（途切れない。カメラPCの上り帯域・負荷は2倍）
+  default_redundancy: single

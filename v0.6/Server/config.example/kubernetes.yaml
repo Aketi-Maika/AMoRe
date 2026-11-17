@@ -1,0 +1,33 @@
+# kubernetes.yaml - Kubernetes で動かす場合の設定（AMoRe v0.6）
+#
+# AMoRe.yaml の media.runtime: kubernetes の場合だけ使う（docker の場合は無視される）。
+# AMoRe の Pod が k8s API で、カメラごとの Deployment・ConfigMap・Service を作る。
+# 構築手順は Container/AMoRe-Container_構築手順書.md を参照。
+kubernetes:
+  # 空なら AMoRe の Pod の namespace（Container/k8s のマニフェストは amore）。
+  namespace: ""
+  # 拠点を表すノードのラベル。値は cluster.site（冗長構成でなければ default）。
+  #   kubectl label node k8s-hq1 amore.site=hq
+  site_label: amore.site
+  # 録画の保存先の PVC（拠点ごと。空なら録画のボリュームを付けない）。NFS 等の RWX を推奨。
+  recordings_claim: ""
+  # 拠点の接続先IP（server.public_host）を割り当てる MetalLB の IPAddressPool（Container/k8s/metallb/pools.yaml。拠点ごと）。
+  metallb_pool: amore-hq
+  # カメラの Pod の requests / limits（空は指定しない）。VP8→H.264 変換を使う場合は CPU に余裕を持たせる。
+  camera_resources:
+    cpu_request: 500m
+    memory_request: 256Mi
+    cpu_limit: ""
+    memory_limit: 1Gi
+  # クラスターの全ノード（keepalived の unicast の相手。冗長構成で keepalived を使う場合に必要）。
+  # ip はノードの実IP。server.public_host（MetalLB が割り当てる拠点の接続先IP）とは別の IP にする。
+  nodes:
+    - name: k8s-hq1
+      ip: 10.40.0.41
+      site: hq
+    - name: k8s-hq2
+      ip: 10.40.0.42
+      site: hq
+    - name: k8s-site1
+      ip: 10.40.0.43
+      site: site1

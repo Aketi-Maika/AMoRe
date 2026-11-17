@@ -1,0 +1,39 @@
+# ai.yaml - AI API 連携（AMoRe v0.4）
+#
+# 外部の API を使う場合、ログ・映像（静止画）が送信される点に注意する。
+# AI の診断・提案は参考情報であり、OBS は自動で操作しない。
+ai:
+  enabled: false
+  # anthropic（Claude）| openai_compatible（OpenAI互換の Chat Completions API。ローカルLLM等）
+  provider: anthropic
+  anthropic:
+    base_url: https://api.anthropic.com
+    api_key: ""           # 例: op://AMoRe/Claude API/credential
+    # 障害診断・配信操作支援に使うモデル
+    model: claude-opus-5-5
+    # 映像解析に使うモデル（定期的に呼ぶため費用に注意。例: claude-haiku-5-5 に変えると安くなる）
+    vision_model: claude-opus-5-5
+    # 応答を拒否された場合にサーバー側で別のモデルへ切り替える
+    fallbacks: true
+  openai_compatible:
+    base_url: ""          # 例: http://10.80.0.50:8000/v1
+    api_key: ""
+    model: ""
+    vision_model: ""      # 画像入力に対応したモデル（空なら model）
+  # 障害診断：管理Webの「AIで診断」でコンテナの状態・ログを送り、原因と対処を表示する。
+  diagnosis:
+    enabled: true
+    effort: high          # low | medium | high | xhigh | max（Claude の思考の深さ）
+    log_lines: 200
+  # 映像解析：受信中のカメラの静止画を定期的に送り、内容と異常（真っ暗・覆われている等）を判定する。
+  vision:
+    enabled: false
+    interval_sec: 120
+    image_width: 640
+    effort: low
+  # 配信操作支援：映像解析の結果から「今使うと良いカメラ」を提案する（OBS は操作しない）。vision が必要。
+  director:
+    enabled: false
+    interval_sec: 30
+    effort: low
+  timeout_sec: 120

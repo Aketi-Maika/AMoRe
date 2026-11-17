@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: amore
+  labels:
+    app.kubernetes.io/part-of: amore
+    # keepalived（hostNetwork・NET_ADMIN）を動かすため privileged にする。
+    pod-security.kubernetes.io/enforce: privileged

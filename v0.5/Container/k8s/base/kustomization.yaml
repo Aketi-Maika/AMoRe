@@ -1,0 +1,11 @@
+# AMoRe v0.5 - 全拠点で共通のリソース
+#   kubectl apply -k Container/k8s/base
+# namespace・ServiceAccount・権限（Role）・keepalived（共通IP）の DaemonSet。
+# カメラの Pod・Service と、共通IP用の Service は AMoRe が k8s API で作る（マニフェストには書かない）。
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: amore
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - keepalived.yaml

@@ -1,0 +1,36 @@
+# 拠点 site1 の録画の保存先（NFS の例）。kubernetes.yaml の recordings_claim に amore-site1-recordings を書く。
+# - <NASのIP>・<共有パス> を拠点の NAS に置き換える（遠隔拠点の NAS を使う）
+# - カメラの Pod は root で書き込むため、NAS 側で root squash を無効にするか、書き込みを許可する
+# - 録画しない場合は kustomization.yaml の resources からこのファイルを外し、recordings_claim を空にする
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: amore-site1-recordings
+  labels:
+    app.kubernetes.io/part-of: amore
+    amore.site: site1
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes: ["ReadWriteMany"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions: ["nfsvers=4.1"]
+  nfs:
+    server: <NASのIP>
+    path: <共有パス>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: amore-site1-recordings
+  labels:
+    app.kubernetes.io/part-of: amore
+    amore.site: site1
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: ""
+  volumeName: amore-site1-recordings
+  resources:
+    requests:
+      storage: 1Ti

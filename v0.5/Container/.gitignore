@@ -1,0 +1,5 @@
+# 拠点ごとの設定（Server/config.example/*.yaml をコピーして作る。拠点の値・秘密情報の参照を含む）
+k8s/sites/*/config/*
+!k8s/sites/*/config/.gitkeep
+# イメージの書き出し
+*.tar

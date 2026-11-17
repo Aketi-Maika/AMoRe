@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMoRe ドック</title>
+  <!-- /obs/ と /obs の両方で開けるよう絶対パスで参照する -->
+  <link rel="stylesheet" href="/obs/dock.css">
+  <script type="module" src="/obs/dock.js"></script>
+</head>
+<body>
+  <header class="head">
+    <strong>AMoRe</strong>
+    <span id="server" class="server">確認中…</span>
+  </header>
+  <div id="error" class="error" hidden></div>
+  <ul id="cameras" class="cameras"></ul>
+  <footer class="foot">
+    <span id="updated">-</span>
+    <span id="version"></span>
+  </footer>
+
+  <template id="cameraTemplate">
+    <li class="camera">
+      <div class="row">
+        <span class="name"></span>
+        <span class="rec" hidden>● 録画</span>
+        <span class="state"></span>
+      </div>
+      <div class="detail"></div>
+      <div class="ai" hidden></div>
+      <div class="url-row">
+        <input class="url" type="text" readonly aria-label="SRT URL">
+        <button class="copy" type="button">コピー</button>
+      </div>
+    </li>
+  </template>
+</body>
+</html>

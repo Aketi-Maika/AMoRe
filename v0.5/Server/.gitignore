@@ -1,0 +1,8 @@
+# 証明書・秘密鍵はリポジトリに含めない（Serverで scripts/gen-cert.sh により作成する）
+certs/*
+!certs/.gitkeep
+# 稼働中の設定（config.example/*.yaml をコピーして作成し、管理Web・Server 間の同期が cameras.yaml を書き換える）
+config/*
+!config/.gitkeep
+# Rustのビルド成果物
+amore/target/
