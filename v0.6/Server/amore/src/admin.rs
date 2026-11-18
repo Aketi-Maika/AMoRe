@@ -111,7 +111,7 @@ pub async fn supervise(state: SharedState) {
         tick.tick().await;
         // 準備が終わるまでは30秒ごとに再試行する（Docker未接続・イメージ取得失敗に備える）。
         if !prepared {
-            if round % 6 == 0 {
+            if round.is_multiple_of(6) {
                 prepared = prepare(&state).await;
             }
         } else {

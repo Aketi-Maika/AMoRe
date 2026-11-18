@@ -88,10 +88,6 @@ impl AiState {
         self.director().map(|d| d.camera_id)
     }
 
-    pub fn diagnosis(&self, camera: &str) -> Option<Diagnosis> {
-        self.diagnoses.lock().expect("ai lock").get(camera).cloned()
-    }
-
     pub fn last_error(&self) -> Option<String> {
         self.last_error.lock().expect("ai lock").clone()
     }

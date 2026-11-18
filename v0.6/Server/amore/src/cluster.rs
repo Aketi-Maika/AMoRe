@@ -206,7 +206,7 @@ pub fn choose_backup<'a>(self_site: &str, peers: &'a [PeerView]) -> Option<&'a P
 }
 
 /// カメラ一覧を取り込むべき Server（稼働中で、改訂番号が自分より新しく最も新しいもの）。
-pub fn newer_cameras<'a>(local_revision: u64, peers: &'a [PeerView]) -> Option<&'a PeerView> {
+pub fn newer_cameras(local_revision: u64, peers: &[PeerView]) -> Option<&PeerView> {
     peers
         .iter()
         .filter(|p| p.up)

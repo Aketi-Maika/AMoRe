@@ -743,9 +743,9 @@ pub async fn list_managed(cfg: &Config) -> Result<Vec<ContainerInfo>> {
     }
     for d in c.list(Kind::Deployment, &selector).await? {
         let name = d["metadata"]["name"].as_str().unwrap_or("").to_string();
-        if !by_name.contains_key(&name) {
-            let replicas = d["spec"]["replicas"].as_u64().unwrap_or(1);
-            let info = if replicas == 0 {
+        // Pod の無い Deployment（作成中・replicas 0）も表示する。
+        by_name.entry(name).or_insert_with(|| {
+            if d["spec"]["replicas"].as_u64().unwrap_or(1) == 0 {
                 held_info(cfg, &d)
             } else {
                 ContainerInfo {
@@ -753,9 +753,8 @@ pub async fn list_managed(cfg: &Config) -> Result<Vec<ContainerInfo>> {
                     status: "Pod を作成しています".to_string(),
                     ..held_info(cfg, &d)
                 }
-            };
-            by_name.insert(name, info);
-        }
+            }
+        });
     }
     let mut out: Vec<ContainerInfo> = by_name.into_values().collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
